@@ -42,13 +42,22 @@ class MA(object):
         for item in self.all_n:
             self.n = item
             column_name = "ma"+str(self.n)
+            try:
+                col = df[column_name]   # 已经存在，已经计算过
+
+                continue
+            except:
+                # print(str(self.code) + "没有" + column_name)
+                pass
+
+
             df[column_name] = ''
             start = 0
             
             # 计算第一个块的均值
             rows = df[start:start+self.n]
             if len(rows) < self.n or rows.values[0][0] < self.end_date:
-                break
+                continue
             flag = True     # 数据是否完整
             block_sum = 0
             for index, row in rows.iterrows():
@@ -60,10 +69,11 @@ class MA(object):
             if flag:
                 ma = block_sum / self.n
             else:
-                ma = 0
+                break
             df.loc[start, column_name] = ma
 
             date_is_end = False
+            data_lost = False
             while True:
                 try:
                     new_line_close = df.loc[start+self.n, '收盘价']
@@ -71,18 +81,20 @@ class MA(object):
                     break
                 if new_line_close == "None" or new_line_close == '0':
                     # 数据不完整
-                    block_sum = 0
+                    ma = 0
+                    data_lost = True
                 else:
                     block_sum = block_sum - df.loc[start, '收盘价'] + new_line_close
+                    ma = block_sum / self.n
                 start += 1
                 if df.loc[start, '日期'] < self.end_date:
-                    date_is_end = True
-                ma = block_sum / self.n
+                    date_is_end = True 
                 df.loc[start, column_name] = ma
-                
+            if data_lost:
+                break       # 如果数据丢失， 跳过这只股票
+            df.to_csv(self.file_path_prefix + str(self.code) + '.csv', index=False, encoding='gbk')
             if date_is_end:
-                break
-        
+                continue
             # 截取块进行枚举， 效率较低
             ####################
             # while True:
@@ -105,13 +117,14 @@ class MA(object):
             #     df.loc[start, column_name] = ma
             #     start += 1
             ####################
-            df.to_csv(self.file_path_prefix + str(self.code) + '.csv', index=False, encoding='gbk')
-
+           
     def analyze_all(self):
         file_list = os.listdir(self.file_path_prefix)
         for index in tqdm(range(len(file_list))):
             filename = file_list[index]     # 取出文件名
             self.code = filename[0:6]
+            # print("####### 当前为" + filename)
+            # print("####### code:" + self.code)
             self.analyze_one()
 
     def test_buy(self, n):
@@ -122,7 +135,7 @@ class MA(object):
         for index in tqdm(range(len(file_list))):
             filename = file_list[index]     # 取出文件名
             code = filename[0:6]
-            print(code)
+            # print(code)
             try:
                 df = pd.read_csv(self.file_path_prefix + filename, encoding='gbk')
             except:
@@ -134,6 +147,10 @@ class MA(object):
             brought = False    # 是否已买入
             buy_arr = []
             sold_arr = []
+            try:
+                temp = df[column_name]   # 存在
+            except:
+                continue    # 跳过这一只
             for index, row in df.iterrows():
                 if not brought:
                     # 未买入， 判断是否小于均线
@@ -152,20 +169,39 @@ class MA(object):
         self.show_buy_res()
         
     def show_buy_res(self):
-        rate = 0
-        for item in self.all_buy_res:
+        profit_count = 0
+        loss_count = 0
+        profit_big = 0
+        loss_big = 0
+        # for item in self.all_buy_res:
+        for i in tqdm(range(len(self.all_buy_res))):
+            item = self.all_buy_res[i]
             if item.diff > 0:
-                rate += 1
-            print(item.to_string())
-        rate /= len(self.all_buy_res)
+                profit_count += 1
+                if item.diff > 1:
+                    profit_big += 1
+            else:
+                loss_count += 1
+                if item.diff < -1:
+                    loss_big += 1
+            # print(item.to_string())
+        rate = profit_count / len(self.all_buy_res)
         rate = format(rate*100, '.4f') + '%'
         print("总共有%s种满足条件的情况， 盈利的几率为%s" % (len(self.all_buy_res), rate))
+
+        profit_big_rate = profit_big / profit_count
+        profit_big_rate = format(profit_big_rate*100, '.4f') + "%"
+        print("共有%s种盈利的可能性， 其中大于1元的有%s种， 占比%s" % (profit_count, profit_big, profit_big_rate))
+        
+        loss_big_rate = loss_big / loss_count
+        loss_big_rate = format(loss_big_rate*100, '.4f') + "%"
+        print("共有%s种亏损的可能性， 其中大于1元的有%s种， 占比%s" % (loss_count, loss_big, loss_big_rate))
 
 
 if __name__ == '__main__':
     file_path_prefix = 'H:\\sharesDatas\\kline\\'
     # file_path_prefix = 'F:\\files\\sharesDatas\\kline\\'
     ma = MA(file_path_prefix,end_date='2017-01-01', code='000001')
-    ma.analyze_all()
-    # ma.test_buy(10)
+    # ma.analyze_all()
+    ma.test_buy(10)
     
