@@ -201,7 +201,7 @@ class MA(object):
 if __name__ == '__main__':
     file_path_prefix = 'H:\\sharesDatas\\kline\\'
     # file_path_prefix = 'F:\\files\\sharesDatas\\kline\\'
-    ma = MA(file_path_prefix,end_date='2017-01-01', code='000001')
+    ma = MA(file_path_prefix, all_n=[60], end_date='2017-01-01', code='000001')
     # ma.analyze_all()
-    ma.test_buy(10)
+    ma.test_buy(60)
     
