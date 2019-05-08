@@ -44,12 +44,10 @@ class MA(object):
             column_name = "ma"+str(self.n)
             try:
                 col = df[column_name]   # 已经存在，已经计算过
-
                 continue
             except:
                 # print(str(self.code) + "没有" + column_name)
                 pass
-
 
             df[column_name] = ''
             start = 0
@@ -168,6 +166,52 @@ class MA(object):
                         brought = False
         self.show_buy_res()
         
+    def test_buy_2(self):
+        '''
+        '黄金交叉'买入， '死亡交叉'卖出
+        '''
+        file_list = os.listdir(self.file_path_prefix)
+        for index in tqdm(range(len(file_list))):
+            filename = file_list[index]     # 取出文件名
+            code = filename[0:6]
+            # print(code)
+            try:
+                df = pd.read_csv(self.file_path_prefix + filename, encoding='gbk')
+            except:
+                print('文件'+str(code) + '.csv 打开失败')
+                return False
+            df = df[df.日期 > self.end_date]
+            df = df.iloc[::-1]      # 倒转
+            
+            # 判断该股票的数据是否完整
+            try:
+                temp1 = df['ma10']   # 存在
+                temp2 = df['ma30']   # 存在
+            except:
+                continue    # 跳过这一只
+            
+            # 遍历文件
+            prev_row = None         # 保存前一行（前一日）
+            brought = False         # 标记是否已买入
+            buy_arr = []            # 购买数组
+            sold_arr = []           # 卖出数组
+            for index,row in df.iterrows():
+                if brought:     # 已经买入， 寻找卖出时机
+                    if prev_row['ma30'] > prev_row['ma10'] and row['ma10'] >= row['ma30']:
+                    # if prev_row['ma30'] < prev_row['ma10'] and row['ma10'] <= row['ma30']:
+                        sold_arr = [row['日期'], row['ma10'], row['收盘价']]
+                        buy_info = BuyInfo(code, buy_arr, sold_arr)
+                        self.all_buy_res.append(buy_info)
+                        brought = False
+                else:           # 没有买入， 寻找买入时机
+                    if prev_row is not None and prev_row['ma30'] < prev_row['ma10'] and row['ma10'] <= row['ma30']:
+                    # if prev_row is not None and prev_row['ma30'] > prev_row['ma10'] and row['ma10'] >= row['ma30']:
+                        buy_arr = [row['日期'], row['ma10'], row['收盘价']]
+                        brought = True
+                prev_row = row
+
+        self.show_buy_res()                
+
     def show_buy_res(self):
         profit_count = 0
         loss_count = 0
@@ -203,5 +247,6 @@ if __name__ == '__main__':
     # file_path_prefix = 'F:\\files\\sharesDatas\\kline\\'
     ma = MA(file_path_prefix, all_n=[60], end_date='2017-01-01', code='000001')
     # ma.analyze_all()
-    ma.test_buy(60)
+    # ma.test_buy(60)
+    ma.test_buy_2()
     
